@@ -66,6 +66,33 @@ class ModuleMuTau(Module):
     self.decayMode_2 = np.zeros(1,dtype='i')
     self.m_vis       = np.zeros(1,dtype='f')
     self.genWeight   = np.zeros(1,dtype='f')
+
+    self.njets       = np.zeros(1,dtype='i')
+    self.nbjets      = np.zeros(1,dtype='i')
+    self.jet_pt_1    = np.zeros(1,dtype='f')
+    self.jet_eta_1   = np.zeros(1,dtype='f')
+    self.jet_pt_2    = np.zeros(1,dtype='f')
+    self.jet_eta_2   = np.zeros(1,dtype='f')
+    self.bjet_pt_1   = np.zeros(1,dtype='f')
+    self.bjet_eta_1  = np.zeros(1,dtype='f')
+    self.bjet_pt_2   = np.zeros(1,dtype='f')
+    self.bjet_eta_2  = np.zeros(1,dtype='f')
+    self.pt_vis      = np.zeros(1,dtype='f')
+    self.pt_Z_puppimet   = np.zeros(1,dtype='f')
+    self.pt_Z_PFmet      = np.zeros(1,dtype='f')
+    self.mt_1_puppimet   = np.zeros(1,dtype='f')
+    self.mt_1_PFmet      = np.zeros(1,dtype='f')
+    self.mt_2_puppimet   = np.zeros(1,dtype='f')
+    self.mt_2_PFmet      = np.zeros(1,dtype='f')
+    self.dzeta_puppimet  = np.zeros(1,dtype='f')
+    self.dzeta_PFmet     = np.zeros(1,dtype='f')
+    self.dR_ll           = np.zeros(1,dtype='f')
+    self.rho             = np.zeros(1,dtype='f')
+    self.npv             = np.zeros(1,dtype='i')
+    self.npv_good        = np.zeros(1,dtype='i')
+    self.npu             = np.zeros(1,dtype='i')
+    self.npu_true        = np.zeros(1,dtype='f')
+
     self.tree.Branch('pt_1',         self.pt_1,        'pt_1/F'       )
     self.tree.Branch('eta_1',        self.eta_1,       'eta_1/F'      )
     self.tree.Branch('q_1',          self.q_1,         'q_1/I'        )
@@ -84,6 +111,32 @@ class ModuleMuTau(Module):
     self.tree.Branch('decayMode_2',  self.decayMode_2, 'decayMode_2/I')
     self.tree.Branch('m_vis',        self.m_vis, 'm_vis/F'            )
     self.tree.Branch('genWeight',    self.genWeight,   'genWeight/F'  )
+
+    self.tree.Branch('njets',          self.njets,     'njets/I'                   )
+    self.tree.Branch('nbjets',         self.nbjets,     'nbjets/I'                 )
+    self.tree.Branch('jet_pt_1',       self.jet_pt_1,     'jet_pt_1/F'             )
+    self.tree.Branch('jet_eta_1',      self.jet_eta_1,     'jet_eta_1/F'           )
+    self.tree.Branch('jet_pt_2',       self.jet_pt_2,     'jet_pt_2/F'             )
+    self.tree.Branch('jet_eta_2',      self.jet_eta_2,     'jet_eta_2/F'           )
+    self.tree.Branch('bjet_pt_1',      self.bjet_pt_1,     'bjet_pt_1/F'           )
+    self.tree.Branch('bjet_eta_1',     self.bjet_eta_1,     'bjet_eta_1/F'         )
+    self.tree.Branch('bjet_pt_2',      self.bjet_pt_2,     'bjet_pt_2/F'           )
+    self.tree.Branch('bjet_eta_2',     self.bjet_eta_2,     'bjet_eta_2/F'         )
+    self.tree.Branch('pt_vis',         self.pt_vis,     'pt_vis/F'                 )
+    self.tree.Branch('pt_Z_puppimet',  self.pt_Z_puppimet,     'pt_Z_puppimet/F'   )
+    self.tree.Branch('pt_Z_PFmet',     self.pt_Z_PFmet,     'pt_Z_PFmet/F'         )
+    self.tree.Branch('mt_1_puppimet',  self.mt_1_puppimet,     'mt_1_puppimet/F'   )
+    self.tree.Branch('mt_1_PFmet',     self.mt_1_PFmet,     'mt_1_PFmet/F'         )
+    self.tree.Branch('mt_2_puppimet',  self.mt_2_puppimet,     'mt_2_puppimet/F'   )
+    self.tree.Branch('mt_2_PFmet',     self.mt_2_PFmet,     'mt_2_PFmet/F'         )
+    self.tree.Branch('dzeta_puppimet', self.dzeta_puppimet,     'dzeta_puppimet/F' )
+    self.tree.Branch('dzeta_PFmet',    self.dzeta_PFmet,     'dzeta_PFmet/F'       )
+    self.tree.Branch('dR_ll',          self.dR_ll,     'dR_ll/F'                   )
+    self.tree.Branch('rho',            self.rho,     'rho/F'                       )
+    self.tree.Branch('npv',            self.npv,     'npv/I'                       )
+    self.tree.Branch('npv_good',       self.npv_good,     'npv_good/I'             )
+    self.tree.Branch('npu',            self.npu,     'npu/I'                       )
+    self.tree.Branch('npu_true',       self.npu_true,     'npu_true/F'             )
   
   def endJob(self):
     """Wrap up after running on all events and files"""
@@ -109,7 +162,7 @@ class ModuleMuTau(Module):
     for muon in Collection(event,'Muon'):
       good_muon = muon.mediumId and muon.pfRelIso04_all < 0.5 and abs(muon.eta) < 2.5
       signal_muon = good_muon and muon.pt > 28.0
-      veto_muon   = False # TODO section 4: introduce a veto muon selection here
+      veto_muon   = good_muon and muon.pt > 15.0 # TODO section 4: introduce a veto muon selection here
       if signal_muon:
         muons.append(muon)
       if veto_muon: # CAUTION: that's NOT an elif here and intended in that way!
@@ -118,6 +171,7 @@ class ModuleMuTau(Module):
     if len(muons) == 0: return False
     self.cutflow.Fill(self.cut_muon)
     # TODO section 4: What should be the requirement to veto events with additional muons?
+    if len(veto_muons) > len(muons): return False
     self.cutflow.Fill(self.cut_muon_veto)
     
     # SELECT TAU
@@ -136,7 +190,7 @@ class ModuleMuTau(Module):
     # and a custom isolation cut on PF based isolation using all PF candidates.
     electrons = []
     for electron in Collection(event,'Electron'):
-      veto_electron = False # TODO section 4: introduce a veto electron selection here
+      veto_electron = electron.Electron_mvaFall17V2Iso_WPL and electron.pt > 15.0 and electron.pfRelIso03_all < 0.15 # TODO section 4: introduce a veto electron selection here
       if veto_electron:
         electrons.append(electron)
     if len(electrons) > 0: return False
@@ -156,8 +210,45 @@ class ModuleMuTau(Module):
     # TODO section 4: Jets are not used directly in our analysis, but it can be good to have a look at least the number of jets (and b-tagged jets) of your selection.
     # Therefore, collect at first jets with pt > 20, |eta| < 4.7, passing loose WP of Pileup ID, and tight WP for jetID.
     # The collected jets are furthermore not allowed to overlap with the signal muon and signal tau in deltaR, so selected them to have deltaR >= 0.5 w.r.t. the signal muon and signal tau.
+    jets = [ ]
+    bjets = [ ]
+    for jet in Collection(event,'Jet'):
+      good_jet = jet.pt > 20.0 and abs(jet.eta) < 4.7 and jet.puID >= 4 and jet.jetId >= 2 and jet.DeltaR(tau) >= 0.5 and jet.DeltaR(muon) >= 0.5
     # Then, select for this collection "usual" jets, which have pt > 30 in addition, count their number, and store pt & eta of the leading and subleading jet.
+      if good_jet.pt > 30.0:
+        jets.append(good_jet)
     # For b-tagged jets, require additionally DeepFlavour b+bb+lepb tag with medium WP and |eta| < 2.5, count their number, and store pt & eta of the leading and subleading b-tagged jet.
+      if good_jet.btagDeepFlavB > 0.2770 and abs(good_jet.eta) < 2.5:  # btag WP from: https://twiki.cern.ch/twiki/bin/viewauth/CMS/BtagRecommendation102X
+        bjets.append(good_jet)
+    jets.sort(key=lambda p: p.pt,reverse=True)
+    tjets.sort(key=lambda p: p.pt,reverse=True)
+    self.njets[0]       = len(jets)
+    self.nbjets[0]      = len(bjets)
+    if len(jets) > 0:
+      self.jet_pt_1[0]  = jets[0].pt
+      self.jet_eta_1[0] = jets[0].eta
+    else:
+      self.jet_pt_1[0]  = -1.
+      self.jet_eta_1[0] = -10.
+    if len(jets) > 1:
+      self.jet_pt_2[0]  = jets[1].pt
+      self.jet_eta_2[0] = jets[1].eta
+    else:
+      self.jet_pt_2[0]  = -1.
+      self.jet_eta_2[0] = -10.
+
+    if len(bjets) > 0:
+      self.bjet_pt_1[0]  = bjets[0].pt
+      self.bjet_eta_1[0] = bjets[0].eta
+    else:
+      self.bjet_pt_1[0]  = -1.
+      self.bjet_eta_1[0] = -10.
+    if len(bjets) > 1:
+      self.bjet_pt_2[0]  = bjets[1].pt
+      self.bjet_eta_2[0] = bjets[1].eta
+    else:
+      self.bjet_pt_2[0]  = -1.
+      self.bjet_eta_2[0] = -10.
 
     # CHOOSE MET definition
     # TODO section 4: compare the PuppiMET and (PF-based) MET in terms of mean, resolution and data/expectation agreement of their own distributions and of related quantities
@@ -190,6 +281,27 @@ class ModuleMuTau(Module):
     self.iso_2[0]       = tau.rawDeepTau2017v2p1VSjet # keep in mind: the HIGHER the value of the discriminator, the more the tau is isolated
     self.decayMode_2[0] = tau.decayMode
     self.m_vis[0]       = (muon.p4()+tau.p4()).M()
+    self.pt_vis[0]      = (muon.p4()+tau.p4()).Pt()
+    self.pt_Z_puppimet[0]      = (muon.p4()+tau.p4()+puppimet.p4()).Pt()
+    self.pt_Z_PFmet[0]         = (muon.p4()+tau.p4()+met.p4()).Pt()
+    self.mt_1_puppimet[0]      = sqrt( 2*muon.pt*puppimet.Pt()*(1-cos(deltaPhi(muon.phi,puppimet.Phi()))) )
+    self.mt_1_PFmet[0]         = sqrt( 2*muon.pt*met.Pt()*(1-cos(deltaPhi(muon.phi,met.Phi()))) )
+    self.mt_2_puppimet[0]      = sqrt( 2*tau.pt*puppimet.Pt()*(1-cos(deltaPhi(tau.phi,puppimet.Phi()))) )
+    self.mt_2_PFmet[0]         = sqrt( 2*tau.pt*met.Pt()*(1-cos(deltaPhi(tau.phi,met.Phi()))) )
+
+    # calculate dZeta
+    leg1                       = TVector3(muon.Px(),muon.Py(),0.)
+    leg2                       = TVector3(tau.Px(),tau.Py(),0.)
+    zetaAxis                   = TVector3(leg1.Unit()+leg2.Unit()).Unit()
+    pzetavis                   = leg1*zetaAxis + leg2*zetaAxis
+    pzetamiss_puppi            = puppimet.Vect()*zetaAxis
+    pzetamiss_PF               = met.Vect()*zetaAxis
+    self.dzeta_puppimet[0]     = pzetamiss_puppi - 0.85*pzetavis
+    self.dzeta_PFmet[0]        = pzetamiss_PF - 0.85*pzetavis
+    self.dR_ll[0]              = muon.DeltaR(tau)
+    self.rho[0]                = event.fixedGridRhoFastjetAll
+    self.npv[0]                = event.PV_npvs
+    self.npv_good[0]           = event.PV_npvsGood
 
     if self.ismc:
       self.genmatch_1[0]  = muon.genPartFlav # in case of muons: 1 == prompt muon, 15 == muon from tau decay, also other values available for muons from jets
@@ -197,6 +309,8 @@ class ModuleMuTau(Module):
                                             #                  1 == prompt electron, 2 == prompt muon, 3 == electron from tau decay,
                                             #                  4 == muon from tau decay, 5 == hadronic tau decay
       self.genWeight[0] = event.genWeight
+      self.npu[0]                = event.Pileup_nPU
+      self.npu_true[0]           = event.Pileup_nTrueInt
     self.tree.Fill()
     
     return True
