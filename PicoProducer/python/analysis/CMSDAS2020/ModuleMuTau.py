@@ -190,7 +190,7 @@ class ModuleMuTau(Module):
     # and a custom isolation cut on PF based isolation using all PF candidates.
     electrons = []
     for electron in Collection(event,'Electron'):
-      veto_electron = electron.Electron_mvaFall17V2Iso_WPL and electron.pt > 15.0 and electron.pfRelIso03_all < 0.15 # TODO section 4: introduce a veto electron selection here
+      veto_electron = electron.Electron_mvaFall17V2Iso_WPL and electron.pt > 15.0 and electron.pfRelIso03_all < 0.5 # TODO section 4: introduce a veto electron selection here
       if veto_electron:
         electrons.append(electron)
     if len(electrons) > 0: return False
