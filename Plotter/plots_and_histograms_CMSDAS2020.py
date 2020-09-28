@@ -35,7 +35,8 @@ def getsampleset(channel,era,**kwargs):
     # GROUP NAME                     TITLE                 XSEC [pb]      effective NEVENTS = simulated NEVENTS * ( 1  - 2 * negative fraction)
 
     # Cross-secitons: https://twiki.cern.ch/twiki/bin/viewauth/CMS/StandardModelCrossSectionsat13TeV, Z/a* (50)
-    ( 'DY', "DYJetsToLL_M-50",       "Drell-Yan 50",       6077.22,       {"nevts" : 100194597 * (1.0 - 2 * negative_fractions["DYJetsToLL_M-50"])}),
+    #( 'DY', "DYJetsToLL_M-50",       "Drell-Yan 50",       6077.22,       {"nevts" : 100194597 * (1.0 - 2 * negative_fractions["DYJetsToLL_M-50"])} ),
+    ( 'DY', "DYJetsToLL_M-50",       "Drell-Yan 50",       6077.22,       {"nevts" : 100194597 * (1.0 - 2 * negative_fractions["DYJetsToLL_M-50"]), 'extraweight': 'zptweight'} ),
 
     # Cross-sections: https://twiki.cern.ch/twiki/bin/viewauth/CMS/StandardModelCrossSectionsat13TeV, Total W
     ( 'WJ', "WJetsToLNu",            "W + jets",           3*20508.9,     {"nevts" : 71072199 * (1.0 - 2 * negative_fractions["WJetsToLNu"])}),
@@ -69,7 +70,9 @@ def getsampleset(channel,era,**kwargs):
   
   # SAMPLE SET
   # TODO section 5: This weight needs to be extended with correction weights common to all simulated samples (MC)
-  weight = "genWeight/abs(genWeight)" # normalize weight, since sometimes the generator cross-section is contained in it.
+  #weight = "genWeight/abs(genWeight)" # normalize weight, since sometimes the generator cross-section is contained in it.
+  #weight = "puweight*genWeight/abs(genWeight)" # normalize weight, since sometimes the generator cross-section is contained in it.
+  weight = "puweight*mu_isoSF_weight*mu_idSF_weight*genWeight/abs(genWeight)" # normalize weight, since sometimes the generator cross-section is contained in it.
   kwargs.setdefault('weight',weight)  # common weight for MC
   sampleset = _getsampleset(datasample,expsamples,channel=channel,era=era,**kwargs)
   
@@ -104,23 +107,49 @@ def plot(sampleset,channel,parallel=True,tag="",outdir="plots",histdir="",era=""
   # SELECTIONS
   inclusive = "(q_1*q_2<0)"
   inclusive = inclusive.replace(" ","")
-  inclusive_cr_qcd = inclusive.replace("q_1*q_2<0","q_1*q_2>0") # inverting the opposite-sign requirement of the mutau pair into a same-sign requirment
+  #inclusive_cr_qcd = inclusive.replace("q_1*q_2<0","q_1*q_2>0") # inverting the opposite-sign requirement of the mutau pair into a same-sign requirment
+  zregion   = "%s && mt_1_puppimet<60 && nbjets==0 && m_vis>40 && m_vis<100 && dzeta_puppimet>-50 "%(inclusive)
   selections = [
     Sel('inclusive',inclusive),
-    Sel('inclusive_cr_qcd',inclusive_cr_qcd),
+    Sel('zregion',zregion),
+    #Sel('inclusive_cr_qcd',inclusive_cr_qcd),
   ]
   
   # VARIABLES
   # TODO section 5: extend with other variables, which are available in the flat n-tuples
   variables = [
      Var('m_vis',  40,  0, 200),
+     Var('pt_vis',  "p_{T}^{vis} ", 40,  0, 200),
+     Var('pt_Z_puppimet',  "p_{T}^{Z} with puppi", 40,  0, 200),
+     #Var('pt_Z_PFmet',  "p_{T}^{Z} with PF", 40,  0, 200),
+     #Var('m_2',   "m_tau_h",     28,  0.2, 1.6),
+     Var('mt_1_puppimet',  "mt(mu,MET) with puppi", 40,  0, 200),
+     #Var('mt_1_PFmet',  "mt(mu,MET) with PF", 40,  0, 200),
+     Var('dzeta_puppimet',  "D_{zeta} with puppi",  56, -180, 100, pos='L;y=0.88',units='GeV'),
+     #Var('dzeta_PFmet',  "D_{zeta} with PF",  56, -180, 100, pos='L;y=0.88',units='GeV'),
+     Var('pt_1',  "Muon pt",    40,  0, 120, ),
+     Var('pt_2',  "tau_h pt",   40,  0, 120, ),
+     Var('eta_1', "Muon eta",   30, -3, 3, ymargin=1.6, ncols=2),
+     Var('eta_2', "tau_h eta",  30, -3, 3, ymargin=1.6, ncols=2),
+     Var('njets', 8,  0,  8),
+     Var('nbjets', 8,  0,  8),
+     Var('dR_ll',   "DR(mutau_h)",    30, 0, 6.0, ctitle={'etau':"DR(etau_h)",'tautau':"DR(tau_htau_h)",'emu':"DR(emu)"}),
+     #Var('met_puppimet',    "p_{T}^{miss} with puppi",   50,  0, 150),
+     #Var('met_PFmet',    "p_{T}^{miss} with PF",   50,  0, 150),
+     Var('rho',    "#rho",    40,    0,  80 ),
+     Var('npv',    40,    0,  80 ),
+     Var('npv_good',    "npv_{good}",   40,    0,  80 ),
+     Var('id_2',    "tau ID vs jet",     65,    0,    65 ),
+     Var('anti_e_2',    "tau ID vs ele",     65,    0,    65 ),
+     Var('anti_mu_2',    "tau ID vs muon",     20,    0,    20 ),
   ]
   
   # PLOT and HIST
   outdir   = ensuredir(repkey(outdir,CHANNEL=channel,ERA=era))
   histdir  = ensuredir(repkey(histdir,CHANNEL=channel,ERA=era))
   outhists = R.TFile.Open(histdir,'recreate')
-  exts     = ['png','pdf']
+  exts     = ['png']
+  #exts     = ['png','pdf']
   for selection in selections:
     outhists.mkdir(selection.filename)
     stacks = sampleset.getstack(variables,selection,method='QCD_OSSS',scale=1.1,parallel=parallel) # the 'scale' keyword argument - chosen as 1.1 for mutau - 
