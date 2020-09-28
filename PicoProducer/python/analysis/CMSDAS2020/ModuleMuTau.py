@@ -136,6 +136,8 @@ class ModuleMuTau(Module):
     self.bjet_pt_2   = np.zeros(1,dtype='f')
     self.bjet_eta_2  = np.zeros(1,dtype='f')
     self.pt_vis      = np.zeros(1,dtype='f')
+    self.met_puppimet    = np.zeros(1,dtype='f')
+    self.met_PFmet    = np.zeros(1,dtype='f')
     self.pt_Z_puppimet   = np.zeros(1,dtype='f')
     self.pt_Z_PFmet      = np.zeros(1,dtype='f')
     self.mt_1_puppimet   = np.zeros(1,dtype='f')
@@ -185,6 +187,8 @@ class ModuleMuTau(Module):
     self.tree.Branch('bjet_pt_2',      self.bjet_pt_2,     'bjet_pt_2/F'           )
     self.tree.Branch('bjet_eta_2',     self.bjet_eta_2,     'bjet_eta_2/F'         )
     self.tree.Branch('pt_vis',         self.pt_vis,     'pt_vis/F'                 )
+    self.tree.Branch('met_puppimet',   self.met_puppimet,     'met_puppimet/F'   )
+    self.tree.Branch('met_PFmet',      self.met_PFmet,     'met_PFmet/F'   )
     self.tree.Branch('pt_Z_puppimet',  self.pt_Z_puppimet,     'pt_Z_puppimet/F'   )
     self.tree.Branch('pt_Z_PFmet',     self.pt_Z_PFmet,     'pt_Z_PFmet/F'         )
     self.tree.Branch('mt_1_puppimet',  self.mt_1_puppimet,     'mt_1_puppimet/F'   )
@@ -358,6 +362,8 @@ class ModuleMuTau(Module):
     self.decayMode_2[0] = tau.decayMode
     self.m_vis[0]       = (muon.p4()+tau.p4()).M()
     self.pt_vis[0]      = (muon.p4()+tau.p4()).Pt()
+    self.met_puppimet[0]       = puppimet.pt
+    self.met_PFmet[0]          = met.pt
     self.pt_Z_puppimet[0]      = (muon.p4()+tau.p4()+puppimet.p4()).Pt()
     self.pt_Z_PFmet[0]         = (muon.p4()+tau.p4()+met.p4()).Pt()
     self.mt_1_puppimet[0]      = sqrt( 2*muon.pt*puppimet.pt*(1-cos(deltaPhi(muon.phi,puppimet.phi))) )
