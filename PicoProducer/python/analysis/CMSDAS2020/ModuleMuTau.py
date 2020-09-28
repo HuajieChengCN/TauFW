@@ -5,12 +5,15 @@ from ROOT import Math
 from ROOT import TLorentzVector, TVector3
 from math import sqrt, exp, cos, pi
 import numpy as np
+import os, re
 from PhysicsTools.NanoAODTools.postprocessing.framework.eventloop import Module
 from PhysicsTools.NanoAODTools.postprocessing.framework.datamodel import Collection, Object
 from TauFW.PicoProducer.analysis.utils import deltaPhi
-from TauFW.PicoProducer.corrections.PileupTool import *
-from TauFW.PicoProducer.corrections.RecoilCorrectionTool import *
-from TauFW.PicoProducer.corrections.MuonSFs import *
+from TauFW.PicoProducer import datadir
+from TauFW.common.tools.file import ensureTFile
+lepdatadir = os.path.join(datadir,"lepton/")
+pudatadir  = os.path.join(datadir,"pileup/")
+zptdatadir = os.path.join(datadir,"zpt/")
 
 
 # Inspired by 'Object' class from NanoAODTools.
@@ -20,6 +23,46 @@ class Met(Object):
     self.eta = 0.0
     self.mass = 0.0
     Object.__init__(self,event,prefix,index)
+
+class Correction:
+  def __init__(self, filename, histname, filename2, histname2, isPU=False):
+    self.filename = filename
+    self.isPU     = isPU
+    self.file     = ensureTFile(filename)
+    self.hist     = self.file.Get(histname)
+    print "Open hist %s in %s"%(self.filename,histname)
+    self.hist.SetDirectory(0)
+    self.file.Close()
+    if isPU:
+      self.hist.Scale(1./self.hist.Integral())
+      self.filename2= filename2
+      self.file2    = ensureTFile(filename2)
+      self.hist2    = self.file2.Get(histname2)
+      self.hist2.SetDirectory(0)      
+      self.hist2.Scale(1./self.hist2.Integral()) 
+      self.file2.Close()
+
+  def getSF(self, pt, eta): # pt as x-axis, eta as y-axis
+    """Get SF for a given pT, eta."""
+    xbin = self.hist.GetXaxis().FindBin(pt)
+    ybin = self.hist.GetYaxis().FindBin(eta)
+    if xbin==0: xbin = 1
+    elif xbin>self.hist.GetXaxis().GetNbins(): xbin -= 1
+    if ybin==0: ybin = 1
+    elif ybin>self.hist.GetYaxis().GetNbins(): ybin -= 1
+    sf   = self.hist.GetBinContent(xbin,ybin)
+    #print "ScaleFactor(%s).getSF_ptvseta: pt = %6.2f, eta = %6.3f, sf = %6.3f"%(self.name,pt,eta,sf)
+    return sf
+
+  def getPUweight(self,npu):
+    """Get pileup weight for a given number of pileup interactions."""
+    data = self.hist.GetBinContent(self.hist.GetXaxis().FindBin(npu))
+    mc   = self.hist2.GetBinContent(self.hist2.GetXaxis().FindBin(npu))
+    if mc>0.:
+      ratio = data/mc
+      if ratio>5.: return 5.
+      return data/mc
+    return 1.
 
 
 class ModuleMuTau(Module):
@@ -79,7 +122,8 @@ class ModuleMuTau(Module):
     self.genWeight   = np.zeros(1,dtype='f')
     self.zptweight   = np.zeros(1,dtype='f')
     self.puweight    = np.zeros(1,dtype='f')
-    self.mu_SF_weight= np.zeros(1,dtype='f')
+    self.mu_isoSF_weight = np.zeros(1,dtype='f')
+    self.mu_idSF_weight  = np.zeros(1,dtype='f')
 
     self.njets       = np.zeros(1,dtype='i')
     self.nbjets      = np.zeros(1,dtype='i')
@@ -127,7 +171,8 @@ class ModuleMuTau(Module):
     self.tree.Branch('genWeight',    self.genWeight,   'genWeight/F'  )
     self.tree.Branch('zptweight',    self.zptweight,   'zptweight/F'  )
     self.tree.Branch('puweight',     self.puweight,   'puweight/F'  )
-    self.tree.Branch('mu_SF_weight', self.mu_SF_weight,   'mu_SF_weight/F'  )
+    self.tree.Branch('mu_isoSF_weight',self.mu_isoSF_weight,   'mu_isoSF_weight/F'  )
+    self.tree.Branch('mu_idSF_weight', self.mu_idSF_weight,   'mu_idSF_weight/F'  )
 
     self.tree.Branch('njets',          self.njets,     'njets/I'                   )
     self.tree.Branch('nbjets',         self.nbjets,     'nbjets/I'                 )
@@ -157,10 +202,16 @@ class ModuleMuTau(Module):
   
     # get corrections
     if self.ismc:
-      self.muSFs          = MuonSFs(era=self.era,verb=self.verbosity)
-      self.puTool         = PileupWeightTool(era=self.era,sample=self.filename,verb=self.verbosity)
+      # mu iso and ID SF:
+      self.muid_tool      = Correction(lepdatadir+"MuonPOG/Run2018/RunABCD_SF_ID.root", 'NUM_MediumID_DEN_genTracks_pt_abseta', "", "", isPU=False)
+      self.muiso_tool     = Correction(lepdatadir+"MuonPOG/Run2018/RunABCD_SF_ISO.root", 'NUM_TightRelIso_DEN_MediumID_pt_abseta', "", "", isPU=False)
+
+      # pileup weight for 2018 data and *Autumn18 MC
+      self.puWeight_tool  = Correction(pudatadir+"Data_PileUp_2018_69p2.root", 'pileup', pudatadir+"MC_PileUp_2018_Autumn18.root", 'pileup', isPU=True)
+
+      # zpt re-weight
       if self.dozpt:
-        self.zptTool      = ZptCorrectionTool(year=self.year)
+        self.zpt_tool     = Correction(zptdatadir+"Zpt_weights_2018.root", 'zptmass_weights', "", "", isPU=False)
   
   def endJob(self):
     """Wrap up after running on all events and files"""
@@ -185,7 +236,7 @@ class ModuleMuTau(Module):
 
     for muon in Collection(event,'Muon'):
       good_muon = muon.mediumId and muon.pfRelIso04_all < 0.5 and abs(muon.eta) < 2.5
-      signal_muon = good_muon and muon.pt > 28.0
+      signal_muon = good_muon and muon.pt > 28.0 and muon.pfIsoId >= 4  # add tight pfIsoId for signal muons, eff ~ 0.95 according to https://twiki.cern.ch/twiki/bin/view/CMS/SWGuideMuonIdRun2#Muon_Isolation
       veto_muon   = good_muon and muon.pt > 15.0 # TODO section 4: introduce a veto muon selection here
       if signal_muon:
         muons.append(muon)
@@ -337,8 +388,9 @@ class ModuleMuTau(Module):
       self.npu[0]                = event.Pileup_nPU
       self.npu_true[0]           = event.Pileup_nTrueInt
     # get corrections
-      self.mu_SF_weight[0]       = self.muSFs.getIdIsoSF(muon.pt,muon.eta)
-      self.puweight[0]           = self.puTool.getWeight(event.Pileup_nTrueInt)
+      self.mu_isoSF_weight[0]    = self.muiso_tool.getSF(muon.pt,muon.eta)
+      self.mu_idSF_weight[0]     = self.muid_tool.getSF(muon.pt,muon.eta)
+      self.puweight[0]           = self.puWeight_tool.getPUweight(event.Pileup_nTrueInt)
       if self.dozpt:
         truthZ = []
         for genPart in Collection(event,'GenPart'):
@@ -346,7 +398,7 @@ class ModuleMuTau(Module):
           if truthZboson:
             truthZ.append(genPart)
         if len(truthZ)==1: 
-          self.zptweight[0]        = self.zptTool.getZptWeight(truthZ[0].p4().Pt(),truthZ[0].p4().M())
+          self.zptweight[0]      = self.zpt_tool.getSF(truthZ[0].p4().M(),truthZ[0].p4().Pt())
     self.tree.Fill()
     
     return True
