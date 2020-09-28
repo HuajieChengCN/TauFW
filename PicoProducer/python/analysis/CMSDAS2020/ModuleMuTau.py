@@ -2,9 +2,12 @@
 # Description: Simple module to pre-select mutau events
 from ROOT import TFile, TTree, TH1D
 from ROOT import Math
+from ROOT import TLorentzVector, TVector3
+from math import sqrt, exp, cos, pi
 import numpy as np
 from PhysicsTools.NanoAODTools.postprocessing.framework.eventloop import Module
 from PhysicsTools.NanoAODTools.postprocessing.framework.datamodel import Collection, Object
+from TauFW.PicoProducer.analysis.utils import deltaPhi
 
 
 # Inspired by 'Object' class from NanoAODTools.
@@ -190,7 +193,7 @@ class ModuleMuTau(Module):
     # and a custom isolation cut on PF based isolation using all PF candidates.
     electrons = []
     for electron in Collection(event,'Electron'):
-      veto_electron = electron.Electron_mvaFall17V2Iso_WPL and electron.pt > 15.0 and electron.pfRelIso03_all < 0.5 # TODO section 4: introduce a veto electron selection here
+      veto_electron = electron.mvaFall17V2Iso_WPL and electron.pt > 15.0 and electron.pfRelIso03_all < 0.5 # TODO section 4: introduce a veto electron selection here
       if veto_electron:
         electrons.append(electron)
     if len(electrons) > 0: return False
@@ -213,15 +216,15 @@ class ModuleMuTau(Module):
     jets = [ ]
     bjets = [ ]
     for jet in Collection(event,'Jet'):
-      good_jet = jet.pt > 20.0 and abs(jet.eta) < 4.7 and jet.puID >= 4 and jet.jetId >= 2 and jet.DeltaR(tau) >= 0.5 and jet.DeltaR(muon) >= 0.5
+      good_jet = jet.pt > 20.0 and abs(jet.eta) < 4.7 and jet.puId >= 4 and jet.jetId >= 2 and jet.DeltaR(tau) >= 0.5 and jet.DeltaR(muon) >= 0.5
     # Then, select for this collection "usual" jets, which have pt > 30 in addition, count their number, and store pt & eta of the leading and subleading jet.
-      if good_jet.pt > 30.0:
-        jets.append(good_jet)
+      if good_jet and jet.pt > 30.0:
+        jets.append(jet)
     # For b-tagged jets, require additionally DeepFlavour b+bb+lepb tag with medium WP and |eta| < 2.5, count their number, and store pt & eta of the leading and subleading b-tagged jet.
-      if good_jet.btagDeepFlavB > 0.2770 and abs(good_jet.eta) < 2.5:  # btag WP from: https://twiki.cern.ch/twiki/bin/viewauth/CMS/BtagRecommendation102X
-        bjets.append(good_jet)
+      if good_jet and jet.btagDeepFlavB > 0.2770 and abs(jet.eta) < 2.5:  # btag WP from: https://twiki.cern.ch/twiki/bin/viewauth/CMS/BtagRecommendation102X
+        bjets.append(jet)
     jets.sort(key=lambda p: p.pt,reverse=True)
-    tjets.sort(key=lambda p: p.pt,reverse=True)
+    bjets.sort(key=lambda p: p.pt,reverse=True)
     self.njets[0]       = len(jets)
     self.nbjets[0]      = len(bjets)
     if len(jets) > 0:
@@ -284,18 +287,18 @@ class ModuleMuTau(Module):
     self.pt_vis[0]      = (muon.p4()+tau.p4()).Pt()
     self.pt_Z_puppimet[0]      = (muon.p4()+tau.p4()+puppimet.p4()).Pt()
     self.pt_Z_PFmet[0]         = (muon.p4()+tau.p4()+met.p4()).Pt()
-    self.mt_1_puppimet[0]      = sqrt( 2*muon.pt*puppimet.Pt()*(1-cos(deltaPhi(muon.phi,puppimet.Phi()))) )
-    self.mt_1_PFmet[0]         = sqrt( 2*muon.pt*met.Pt()*(1-cos(deltaPhi(muon.phi,met.Phi()))) )
-    self.mt_2_puppimet[0]      = sqrt( 2*tau.pt*puppimet.Pt()*(1-cos(deltaPhi(tau.phi,puppimet.Phi()))) )
-    self.mt_2_PFmet[0]         = sqrt( 2*tau.pt*met.Pt()*(1-cos(deltaPhi(tau.phi,met.Phi()))) )
+    self.mt_1_puppimet[0]      = sqrt( 2*muon.pt*puppimet.pt*(1-cos(deltaPhi(muon.phi,puppimet.phi))) )
+    self.mt_1_PFmet[0]         = sqrt( 2*muon.pt*met.pt*(1-cos(deltaPhi(muon.phi,met.phi))) )
+    self.mt_2_puppimet[0]      = sqrt( 2*tau.pt*puppimet.pt*(1-cos(deltaPhi(tau.phi,puppimet.phi))) )
+    self.mt_2_PFmet[0]         = sqrt( 2*tau.pt*met.pt*(1-cos(deltaPhi(tau.phi,met.phi))) )
 
     # calculate dZeta
-    leg1                       = TVector3(muon.Px(),muon.Py(),0.)
-    leg2                       = TVector3(tau.Px(),tau.Py(),0.)
+    leg1                       = TVector3(muon.p4().Px(),muon.p4().Py(),0.)
+    leg2                       = TVector3(tau.p4().Px(),tau.p4().Py(),0.)
     zetaAxis                   = TVector3(leg1.Unit()+leg2.Unit()).Unit()
     pzetavis                   = leg1*zetaAxis + leg2*zetaAxis
-    pzetamiss_puppi            = puppimet.Vect()*zetaAxis
-    pzetamiss_PF               = met.Vect()*zetaAxis
+    pzetamiss_puppi            = puppimet.p4().Vect()*zetaAxis
+    pzetamiss_PF               = met.p4().Vect()*zetaAxis
     self.dzeta_puppimet[0]     = pzetamiss_puppi - 0.85*pzetavis
     self.dzeta_PFmet[0]        = pzetamiss_PF - 0.85*pzetavis
     self.dR_ll[0]              = muon.DeltaR(tau)
