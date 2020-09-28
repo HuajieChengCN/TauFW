@@ -8,6 +8,9 @@ import numpy as np
 from PhysicsTools.NanoAODTools.postprocessing.framework.eventloop import Module
 from PhysicsTools.NanoAODTools.postprocessing.framework.datamodel import Collection, Object
 from TauFW.PicoProducer.analysis.utils import deltaPhi
+from TauFW.PicoProducer.corrections.PileupTool import *
+from TauFW.PicoProducer.corrections.RecoilCorrectionTool import *
+from TauFW.PicoProducer.corrections.MuonSFs import *
 
 
 # Inspired by 'Object' class from NanoAODTools.
@@ -28,7 +31,12 @@ class ModuleMuTau(Module):
     self.dtype      = kwargs.get('dtype', 'data')
     self.ismc       = self.dtype=='mc'
     self.isdata     = self.dtype=='data'
-  
+    self.filename   = fname
+    self.year       = kwargs.get('year',    2018           ) # integer, e.g. 2017, 2018
+    self.era        = kwargs.get('era',     '2017'         ) # string, e.g. '2017', 'UL2017'
+    self.dozpt      = kwargs.get('zpt',     'DY' in fname  ) # Z pT reweighting
+    self.verbosity  = kwargs.get('verb',    0              ) # verbosity
+
   def beginJob(self):
     """Prepare output analysis tree and cutflow histogram."""
     
@@ -69,6 +77,9 @@ class ModuleMuTau(Module):
     self.decayMode_2 = np.zeros(1,dtype='i')
     self.m_vis       = np.zeros(1,dtype='f')
     self.genWeight   = np.zeros(1,dtype='f')
+    self.zptweight   = np.zeros(1,dtype='f')
+    self.puweight    = np.zeros(1,dtype='f')
+    self.mu_SF_weight= np.zeros(1,dtype='f')
 
     self.njets       = np.zeros(1,dtype='i')
     self.nbjets      = np.zeros(1,dtype='i')
@@ -114,6 +125,9 @@ class ModuleMuTau(Module):
     self.tree.Branch('decayMode_2',  self.decayMode_2, 'decayMode_2/I')
     self.tree.Branch('m_vis',        self.m_vis, 'm_vis/F'            )
     self.tree.Branch('genWeight',    self.genWeight,   'genWeight/F'  )
+    self.tree.Branch('zptweight',    self.zptweight,   'zptweight/F'  )
+    self.tree.Branch('puweight',     self.puweight,   'puweight/F'  )
+    self.tree.Branch('mu_SF_weight', self.mu_SF_weight,   'mu_SF_weight/F'  )
 
     self.tree.Branch('njets',          self.njets,     'njets/I'                   )
     self.tree.Branch('nbjets',         self.nbjets,     'nbjets/I'                 )
@@ -140,6 +154,13 @@ class ModuleMuTau(Module):
     self.tree.Branch('npv_good',       self.npv_good,     'npv_good/I'             )
     self.tree.Branch('npu',            self.npu,     'npu/I'                       )
     self.tree.Branch('npu_true',       self.npu_true,     'npu_true/F'             )
+  
+    # get corrections
+    if self.ismc:
+      self.muSFs          = MuonSFs(era=self.era,verb=self.verbosity)
+      self.puTool         = PileupWeightTool(era=self.era,sample=self.filename,verb=self.verbosity)
+      if self.dozpt:
+        self.zptTool      = ZptCorrectionTool(year=self.year)
   
   def endJob(self):
     """Wrap up after running on all events and files"""
@@ -259,6 +280,7 @@ class ModuleMuTau(Module):
     puppimet = Met(event, 'PuppiMET')
     met = Met(event, 'MET')
     
+
     # SAVE VARIABLES
     # TODO section 4: extend the variable list with more quantities (also high level ones). Compute at least:
     # - visible pt of the Z boson candidate
@@ -314,6 +336,17 @@ class ModuleMuTau(Module):
       self.genWeight[0] = event.genWeight
       self.npu[0]                = event.Pileup_nPU
       self.npu_true[0]           = event.Pileup_nTrueInt
+    # get corrections
+      self.mu_SF_weight[0]       = self.muSFs.getIdIsoSF(muon.pt,muon.eta)
+      self.puweight[0]           = self.puTool.getWeight(event.Pileup_nTrueInt)
+      if self.dozpt:
+        truthZ = []
+        for genPart in Collection(event,'GenPart'):
+          truthZboson = (genPart.pdgId == 23) and (genPart.status == 62)
+          if truthZboson:
+            truthZ.append(genPart)
+        if len(truthZ)==1: 
+          self.zptweight[0]        = self.zptTool.getZptWeight(truthZ[0].p4().Pt(),truthZ[0].p4().M())
     self.tree.Fill()
     
     return True
