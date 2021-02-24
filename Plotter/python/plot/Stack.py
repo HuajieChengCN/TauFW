@@ -57,7 +57,6 @@ class Stack(Plot):
     sysvars      = kwargs.get('sysvars',      [ ]             ) # create sys. error band from variations
     errtitle     = kwargs.get('errtitle',     None            ) # title for error band
     norm         = kwargs.get('norm',         self.norm       ) # normalize all histograms
-    title        = kwargs.get('title',        self.title      ) # title for legend
     xtitle       = kwargs.get('xtitle',       xtitle          ) # x axis title
     ytitle       = kwargs.get('ytitle',       self.ytitle     ) # y axis title (if None, automatically set by Plot.setaxis)
     rtitle       = kwargs.get('rtitle',       "Obs. / Exp."   ) # y axis title of ratio panel
@@ -137,14 +136,23 @@ class Stack(Plot):
     self.canvas = self.setcanvas(square=square,ratio=ratio,
                                  lmargin=lmargin,rmargin=rmargin,tmargin=tmargin,bmargin=bmargin)
     
-    # DRAW
-    self.canvas.cd(1)
+    # CREATE STACK
     stack = THStack(makehistname('stack',self.name),"") # stack (expected)
     self.stack = stack
-    self.frame = stack
-    for hist in reversed(self.exphists): # stacked bottom to top 
+    for hist in reversed(self.exphists): # stacked bottom to top
       stack.Add(hist)
-    stack.Draw('HIST')
+    
+    
+    # DRAW FRAME
+    self.canvas.cd(1)
+    if not self.frame: # if not given by user
+      self.frame = getframe(gPad,stack,xmin,xmax)
+      #self.frame.Draw('AXIS') # 'AXIS' breaks GRID?
+    else:
+      self.frame.Draw('AXIS') # 'AXIS' breaks GRID?
+    
+    # DRAW
+    stack.Draw('HIST SAME')
     if drawsignal: # signal
       for hist in self.sighists:
         hist.Draw(option+" SAME")

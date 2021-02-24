@@ -89,8 +89,8 @@ def makelatex(string,**kwargs):
     if "p_" in strlow:
       string = re.sub(r"(?<!i)(p)_([^{}()|<>=\ ]+)",r"\1_{\2}",string,flags=re.IGNORECASE).replace('{t}','{T}')
       GeV    = True
-    if re.search(r"(?<!le)(?<!byphoton)(?<!dee)pt(?!weight)",strlow):
-      string = re.sub(r"(?<!k)(?<!Dee)(?<!OverTau)(p)[tT]_([^{}()|<>=\ ]+)",r"\1_{T}^{\2}",string,flags=re.IGNORECASE)
+    if re.search(r"(?<!le)(?<!byphoton)(?<!dee)pt(?!weight)",strlow): # pt
+      string = re.sub(r"(?<!k)(?<!Dee)(?<!OverTau)(p)[tT]_([^{}()|<>=_\ ]+)",r"\1_{T}^{\2}",string,flags=re.IGNORECASE)
       string = re.sub(r"\b(?<!Dee)(p)[tT]\b",r"\1_{T}",string,flags=re.IGNORECASE)
       GeV    = True
     if strlow=="mt":
@@ -263,12 +263,13 @@ def match(terms, labels, **kwargs):
   if not terms:
     return False
   for i, searchterm in enumerate(terms):
+    if not searchterm: continue
     if not regex: # convert glob to regexp
       #fnmatch.translate( '*.foo' )
       #searchterm = re.sub(r"(?<!\\)\+",r"\+",searchterm)   # replace + with \+
       #searchterm = re.sub(r"([^\.])\*",r"\1.*",searchterm) # replace * with .*
-      searchterm = re.escape(searchterm).replace(r'\?', '.').replace(r'\*', '.*?')
-    if start:
+      searchterm = re.escape(searchterm).replace(r'\?','.').replace(r'\*','.*?').replace(r'\^','^')
+    if start and not searchterm.startswith('^'):
       searchterm = '^'+searchterm
     terms[i] = searchterm
   if incl: # inclusive: match only one search term

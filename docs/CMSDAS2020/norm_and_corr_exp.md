@@ -12,7 +12,8 @@ Expect to play around most of your time with the tools introduced in this sectio
 The main script for the tasks considered and discussed within this section is [plots_and_histograms_CMSDAS2020.py](../../Plotter/plots_and_histograms_CMSDAS2020.py)
 
 It is constructed to produce nice plots of distributions of various quantities, like the visible mass of the &tau;&tau; system, m<sub>vis</sub>, and to create histograms
-for further processing with CombineHarvester.
+for further processing with CombineHarvester. The distribution plots, often referred to as **control plots**, are used to examine the agreement between data and expected
+contributions and help to improve this agreement and to refine selection requirements, as will be discussed in more detail in section [6](refine_ztautau.md).
 
 Let us first have a look at its general structure:
 
@@ -115,7 +116,7 @@ In case of cross-sections, several Twiki pages can be consulted:
 + SM processes like Drell-Yan, Diboson, W + Jets, etc.: [StandardModelCrossSectionsat13TeV](https://twiki.cern.ch/twiki/bin/viewauth/CMS/StandardModelCrossSectionsat13TeV)
 + TTbar production: [TtbarNNLO](https://twiki.cern.ch/twiki/bin/view/LHCPhysics/TtbarNNLO#Top_quark_pair_cross_sections_at)
 + Single top production: [SingleTopSigma](https://twiki.cern.ch/twiki/bin/viewauth/CMS/SingleTopSigma)
-+ Higgs Boson production: [LHCHXSWG](https://twiki.cern.ch/twiki/bin/view/LHCPhysics/LHCHXSWG#Higgs_cross_sections_and_decay_b)
++ Higgs boson production: [LHCHXSWG](https://twiki.cern.ch/twiki/bin/view/LHCPhysics/LHCHXSWG#Higgs_cross_sections_and_decay_b)
 
 In some cases, the cross-section is not known for a particular phase-space simulated by the generator. The most precise possibility is to use the
 [GenXSecAnalyzer](https://twiki.cern.ch/twiki/bin/viewauth/CMS/HowToGenXSecAnalyzer) in this case. Sometimes, the cross-sections are also given in [XSDB](https://cms-gen-dev.cern.ch/xsdb/),
@@ -352,3 +353,142 @@ corrections to be applied to simulated events in the context of the Z&rarr;&tau;
 
 The corrections considered in this subsection belong to the type, that can be introduced with event weights. A different type of corrections will
 be discussed in section [7](es_tau.md), covering the &tau;<sub>h</sub> energy scale correction as an example.
+
+### Pileup reweighting
+
+One of the general corrections used for simulated samples is the pileup reweighting. The reason to introduce this correction is the fact, that the distribution of the
+number of additional interactions taking place in collision events is different between data and simulation. The measured mean number of interactions per bunch crossing
+for the 2018 data-taking period is shown on public results pages of the luminosity group of CMS:
+
+![](https://cmslumi.web.cern.ch/publicplots/pileup_pp_2018_69200.png)
+
+This histogram corresponds to the true number of interactions per bunch crossing in simulation, averaged over a luminosity section. This value is used as an input parameter to
+obtain the Poisson distributed number of interactions on an event-by-event basis.
+Details on the measurement of the number of interactions and its determination for simulated events is given on the
+[Pileup Twiki page](https://twiki.cern.ch/twiki/bin/view/CMS/PileupJSONFileforData).
+
+The corresponding histograms are already included in the software framework:
+
+* Data from 2018 data-taking period: [Data_PileUp_2018_69p2.root](../../PicoProducer/data/pileup/Data_PileUp_2018_69p2.root)
+* Simulation from the Autumn18 Monte-Carlo campaign: [MC_PileUp_2018_Autumn18.root](../../PicoProducer/data/pileup/MC_PileUp_2018_Autumn18.root)
+
+This means, that you would need to introduce a new weight quantity `pileupWeight` to the analysis module
+[ModuleMuTau](../../PicoProducer/python/analysis/CMSDAS2020/ModuleMuTau.py) by dividing the two histograms after having normalized them to unity, and extracting
+the appropriate weight using the `Pileup_nTrueInt` quantity from the simulated NanoAOD input sample. In the next step, extend the weight applied to all simulated
+samples in [plots_and_histograms_CMSDAS2020.py](../../Plotter/plots_and_histograms_CMSDAS2020.py) accordingly.
+
+You can demonstrate the effect of the reweighting by having a look at the control plots of the two quantities affected by this correction:
+
+* Number of reconstructed primary vertices (`PV_npvs`)
+* Pileup density &rho;, computed from all PF Candidates (`fixedGridRhoFastjetAll`)
+
+Furthermore, make a plot of the two pileup distributions in data and simulation, and the resulting correction weights histogram.
+
+### Muon efficiency corrections
+
+In contrast to pileup reweighting, which is a pure modelling systematic effect related to Monte-Carlo simulation, muon efficiency corrections belong to systematic effects of
+experimental type. In the context of the exercise, we will examine the muon identification and muon isolation efficiencies.
+
+Under muon identification (ID) we understand a selection of muons with quality requirements (see
+[Muon ID Twiki](https://twiki.cern.ch/twiki/bin/viewauth/CMS/SWGuideMuonIdRun2#Muon_Identification)), which are compiled in working points, the most common being
+[Loose](https://twiki.cern.ch/twiki/bin/viewauth/CMS/SWGuideMuonIdRun2#Loose_Muon), [Medium](https://twiki.cern.ch/twiki/bin/viewauth/CMS/SWGuideMuonIdRun2#Medium_Muon), and
+[Tight](https://twiki.cern.ch/twiki/bin/viewauth/CMS/SWGuideMuonIdRun2#Tight_Muon). These working points are defined according to the efficiency to identify true muons and
+the misidentification rate of objects reconstructed falsely as muons.
+
+The **tighter** the selection the purer is the selected set of muons, having a smaller efficiency,
+but also a much smaller misidentification rate. For some applications, a higher efficiency is more important than a pure set of muons, such that a **looser** working point
+is chosen.
+
+For muons, muon isolation (Iso) is handled separately from identification to allow for flexibility of an analysis to choose the Iso working points independently of ID working
+points. The isolation is computed by summing up the energy around the muon in a predefined (&eta;, &phi;) cone. At CMS, we usually use the
+[PF-based isolation](https://twiki.cern.ch/twiki/bin/viewauth/CMS/SWGuideMuonIdRun2#Particle_Flow_isolation), summing up transverse energy and momenta of particle flow
+candidates around the muon.
+
+To correct the isolation sum for contamination from pileup (PU), an estimate of the corresponding energy contribution is subtracted from the full energy sum. For muons, the
+&Delta;&beta; correction is used, leading to the following formula for the muon isolation sum:
+
+Iso(&mu;) = &Sigma;p<sub>T</sub>(P<sup>&plusmn;</sup> from PV) + max(0, &Sigma;p<sub>T</sub>(h<sup>0</sup>) + &Sigma;p<sub>T</sub>(&gamma;) - &Delta;&beta; &middot;
+&Sigma;p<sub>T</sub>(P<sup>&plusmn;</sup> from PU))
+
+The following assumptions and syntax is used for the formula above:
+
+* Cone around the muon is chosen to be &Delta;R = 0.4.
+* Multiplicative factor &Delta;&beta; = 0.5.
+* P<sup>&plusmn;</sup> from PV: charged particles from the primary vertex (other than the considered muon)
+* P<sup>&plusmn;</sup> from PU: charged particles from pileup
+* h<sup>0</sup>: neutral hadrons
+* &gamma;: photons
+
+The main idea of the &Delta;&beta; correction is to estimate the energy contribution of neutral particles from
+pileup by exploiting the ratio between charged and neutral particles from pileup, which is estimated to be the factor &Delta;&beta;.
+
+To define a working point for a selection of isolated muons, usually the **relative** isolation sum of a muon is considered:
+
+rel. Iso(&mu;) = Iso(&mu;)/p<sub>T</sub>(&mu;)
+
+Also for the selection of isolated muons, several working points are defined according to the efficiency to select true muons.
+
+Both the muon identification and muon isolation efficiencies are measured with the
+[Tag and Probe (TnP) method](https://twiki.cern.ch/twiki/bin/view/CMS/MuonReferenceEffsRun2Legacy), selecting Z&rarr;&mu;&mu; with a strict selection of one
+of the muons (tag muon) and checking, whether the second muon (probe muon) passes the considered selection requirements. The efficiencies are measured
+recursively, such that the isolation efficiency depends on a chosen identification working point. Usually, these efficiencies are measured as functions
+of the p<sub>T</sub> and &eta; of the muon. 
+
+Scale factors used for correction are then derived as the ratio of the efficiencies in data and simulation. Such a scale factor is expected to be close to one,
+but may differ from unity due to differences of detector response between data events and simulated events or modelling used in simulation,
+leading to different distributions of quantities used for reconstruction, identification of muons and the particles around it.
+
+The corresponding histograms are already provided in the software framework:
+
+* Identification scale factors: [RunABCD_SF_ID.root](../../PicoProducer/data/lepton/MuonPOG/Run2018/RunABCD_SF_ID.root)
+* Isolation scale factors: [RunABCD_SF_Iso.root](../../PicoProducer/data/lepton/MuonPOG/Run2018/RunABCD_SF_Iso.root)
+
+Please note, that only a limited set of combinations is provided for the working points of ID and Iso in these files, such that you would have to stick to these
+selection choices to apply the corrections consistently.
+
+Please introduce two weights `idWeight` and `isoWeight` to the analysis module
+[ModuleMuTau](../../PicoProducer/python/analysis/CMSDAS2020/ModuleMuTau.py) by extracting the weights from the histograms using the p<sub>T</sub> and &eta; of the muon
+from the &mu;&tau;<sub>h</sub> pair. As for the pileup weight before, please extend the total weight applied to all simulated
+samples in [plots_and_histograms_CMSDAS2020.py](../../Plotter/plots_and_histograms_CMSDAS2020.py) accordingly after having added the two weights to your n-tuples.
+
+As you might already have guessed, the change of the correction can be demonstrated best with control plots of p<sub>T</sub> and &eta; of the muon.
+
+### Z boson p<sub>T</sub> correction
+
+The last type of correction which we will examine is a modelling correction, which is in contrast to the pileup reweighting process specific, such that it has
+to be applied only to Drell-Yan events - the Z boson p<sub>T</sub> correction. The reason for this correction is the fact, that the used simulated samples correspond
+to leading order (LO) precision in QCD for Drell-Yan events, for which the Z boson p<sub>T</sub> is not well described if compared to the corresponding data distribution.
+
+The correction scale factors are measured for a pure Z&rarr;&mu;&mu selection, were the true Z boson p<sub>T</sub> is expected to corrrespond to the p<sub>T</sub>
+of the &mu;&mu; pair. These weights are computed such that they change the distribution of reconstructed p<sub>T</sub>(Z) in simulation to the one in data, preserving
+the overal normalization of the considered simulated events.
+
+The weights, which are already provided in [Zpt_weights_2018.root](../../PicoProducer/data/zpt/Zpt_weights_2018.root) are then applied to generator truth information
+on the Z boson p<sub>T</sub>. In that way, the correction can be applied to Z&rarr;&tau;&tau; events, where the Z boson p<sub>T</sub> can not be reconstructed precisely
+due to neutrinos involved in &tau; decays.
+
+To obtain the information on particles at the level of the Monte-Carlo generator, you would need to loop through the list of generator particles
+[`GenPart`](https://cms-nanoaod-integration.web.cern.ch/integration/master-106X/mc102X_doc.html#GenPart) and select the Z boson according to its
+[`pdgId`](https://pdg.lbl.gov/2020/reviews/rpp2020-rev-monte-carlo-numbering.pdf). There will be several instantiations of the Z boson with a different status,
+which is a detail of the [Pythia 8.2](http://home.thep.lu.se/~torbjorn/pythia82html/Welcome.html) event generator.
+You should choose `GenPart_status == 62` which corresponds to the generator truth Z boson after proper treatment of beam remnant particles,
+contributing to the underlying event of a collision.
+
+The weight from the histogram in [Zpt_weights_2018.root](../../PicoProducer/data/zpt/Zpt_weights_2018.root), extracted by using generator Z boson p<sub>T</sub>, should
+only be computed for and applied to the simulated events of the Drell-Yan process, which can be managed by an option keyword argument `zpt` introduced in
+[samples_mutau_2018_preselected.py](../../PicoProducer/samples/CMSDAS2020/samples_mutau_2018_preselected.py#L8-L12). You can access this keyword argument
+in a similar way as the sample type `dtype` in [ModuleMuTau.py](../../PicoProducer/python/analysis/CMSDAS2020/ModuleMuTau.py#L25).
+
+After having introduced a sample specific weight `zptWeight` to your Drell-Yan n-tuple, you can add it with the `extraweight` key into the dictionary of the Drell-Yan
+process in [plots_and_histograms_CMSDAS2020.py](../../Plotter/plots_and_histograms_CMSDAS2020.py#L37-L38), as already done for `nevts`.
+An example, how this can be done, is given in [samples.py](../../Plotter/config/samples.py#L19-L24).
+
+To demonstrate the change introduced by this correction, you can have a look at the control plots of the visible Z boson p<sub>T</sub>, computed from the p<sub>T</sub>
+of the &mu;&tau;<sub>h</sub> pair, and the best reconstructed estimate for the Z boson p<sub>T</sub>, corresponding to the vector sum of &mu;&tau;<sub>h</sub>
+pair p<sub>T</sub> and the MET vector.
+
+### Group task - implement the event-by-event corrections
+
+Those of you, who would like to take care of the corrections discussed in the previous subsections, please implement the required procedures, and document the
+impact of each correction step by step in form of control plots. For the presentation, please explain the purpose of each correction, if needed, by making use of
+sketches and plots of provided correction factors.

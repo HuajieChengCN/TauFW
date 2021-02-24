@@ -70,8 +70,6 @@ def getsampleset(channel,era,**kwargs):
   
   # SAMPLE SET
   # TODO section 5: This weight needs to be extended with correction weights common to all simulated samples (MC)
-  #weight = "genWeight/abs(genWeight)" # normalize weight, since sometimes the generator cross-section is contained in it.
-  #weight = "puweight*genWeight/abs(genWeight)" # normalize weight, since sometimes the generator cross-section is contained in it.
   weight = "puweight*mu_isoSF_weight*mu_idSF_weight*genWeight/abs(genWeight)" # normalize weight, since sometimes the generator cross-section is contained in it.
   kwargs.setdefault('weight',weight)  # common weight for MC
   sampleset = _getsampleset(datasample,expsamples,channel=channel,era=era,**kwargs)
@@ -193,6 +191,8 @@ if __name__ == "__main__":
                                          help="Set era. Default: %(default)s" )
   parser.add_argument('-c', '--channel', dest='channel', type=str, default="mutau",
                                          help="Set channel. Default: %(default)s" )
+  parser.add_argument('-t', '--tag',     dest='tag', type=str, default="",
+                                         help="Set tag. Default: %(default)s" )
   parser.add_argument('-s', '--serial',  dest='parallel', action='store_false',
                                          help="Run Tree::MultiDraw serial instead of in parallel" )
   parser.add_argument('-v', '--verbose', dest='verbosity', type=int, nargs='?', const=1, default=0, action='store',

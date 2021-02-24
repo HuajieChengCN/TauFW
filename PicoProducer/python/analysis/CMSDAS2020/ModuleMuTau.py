@@ -15,7 +15,6 @@ lepdatadir = os.path.join(datadir,"lepton/")
 pudatadir  = os.path.join(datadir,"pileup/")
 zptdatadir = os.path.join(datadir,"zpt/")
 
-
 # Inspired by 'Object' class from NanoAODTools.
 # Convenient to do so to be able to add MET as 4-momentum to other physics objects using p4()
 class Met(Object):
@@ -63,7 +62,6 @@ class Correction:
       if ratio>5.: return 5.
       return data/mc
     return 1.
-
 
 class ModuleMuTau(Module):
   
@@ -328,6 +326,8 @@ class ModuleMuTau(Module):
     else:
       self.bjet_pt_2[0]  = -1.
       self.bjet_eta_2[0] = -10.
+    # Then, select for this collection "usual" jets, which have pt > 30 in addition, count their number, and store pt & eta of the leading and subleading jet.
+    # For b-tagged jets, require additionally DeepFlavour b+bb+lepb tag with medium WP and |eta| < 2.5, count their number, and store pt & eta of the leading and subleading b-tagged jet.
 
     # CHOOSE MET definition
     # TODO section 4: compare the PuppiMET and (PF-based) MET in terms of mean, resolution and data/expectation agreement of their own distributions and of related quantities
@@ -335,11 +335,10 @@ class ModuleMuTau(Module):
     puppimet = Met(event, 'PuppiMET')
     met = Met(event, 'MET')
     
-
     # SAVE VARIABLES
     # TODO section 4: extend the variable list with more quantities (also high level ones). Compute at least:
     # - visible pt of the Z boson candidate
-    # - best-estimate for pt of Z boson candidate (now including contribution form neutrinos)
+    # - best-estimate for pt of Z boson candidate (now including contribution from neutrinos)
     # - transverse mass of the system composed from the muon and MET vectors. Definition can be found in doi:10.1140/epjc/s10052-018-6146-9.
     #   Caution: use ROOT DeltaPhi for difference in phi and check that deltaPhi is between -pi and pi.Have a look at transverse mass with both versions of MET
     # - Dzeta. Definition can be found in doi:10.1140/epjc/s10052-018-6146-9. Have a look at the variable with both versions of MET

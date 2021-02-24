@@ -8,7 +8,7 @@ from TauFW.common.tools.log import Logger
 from TauFW.Plotter.plot import moddir
 import TauFW.Plotter.plot.CMSStyle as CMSStyle
 import ROOT; ROOT.PyConfig.IgnoreCommandLineOptions = True
-from ROOT import gDirectory, gROOT, gStyle, TH1, THStack, TGraphErrors, TGraphAsymmErrors, Double,\
+from ROOT import gDirectory, gROOT, gStyle, gPad, TH1, THStack, TGraph, TGraphErrors, TGraphAsymmErrors, Double,\
                  kSolid, kDashed, kDotted, kBlack, kWhite
 #moddir = os.path.dirname(__file__)
 gROOT.SetBatch(True)
@@ -29,6 +29,21 @@ def normalize(*hists,**kwargs):
     else:
       LOG.warning("norm: Could not normalize; integral = 0!")
   
+
+def getframe(pad,hist,xmin=None,xmax=None):
+  """Help function to get frame."""
+  garbage = [ ]
+  if isinstance(hist,THStack):
+    hist = hist.GetStack().Last()
+  elif isinstance(hist,TGraph):
+    hist = hist.GetHistogram()
+    garbage.append(hist)
+  xmin_ = hist.GetXaxis().GetXmin() if not xmin and xmin!=0 else xmin
+  xmax_ = hist.GetXaxis().GetXmax() if not xmax and xmax!=0 else xmax
+  frame = pad.DrawFrame(xmin_,hist.GetMinimum(),xmax_,hist.GetMaximum())
+  close(garbage)
+  return frame
+
 
 def close(*hists,**kwargs):
   """Close histograms."""
@@ -104,19 +119,19 @@ def grouphists(hists,searchterms,name=None,title=None,**kwargs):
   """Group histograms in a list corresponding to some searchterm, return their sum.
   E.g. grouphists(hists,['TT','ST'],'Top')
        grouphists(hists,['WW','WZ','ZZ'],'Diboson')"""
-  verbosity   = LOG.getverbosity(kwargs)
-  searchterms = ensurelist(searchterms)
-  replace     = kwargs.get('replace',   False ) # replace grouped histograms with sum in list
-  close       = kwargs.get('close',     False ) # close grouped histograms
+  verbosity      = LOG.getverbosity(kwargs)
+  searchterms    = ensurelist(searchterms)
+  replace        = kwargs.get('replace', False ) # replace grouped histograms with sum in list
+  close          = kwargs.get('close',   False ) # close grouped histograms
   kwargs['verb'] = verbosity-1
-  matches     = gethist(hists,*searchterms,warn=False,**kwargs) if searchterms else hists
-  histsum     = None
+  matches        = gethist(hists,*searchterms,warn=False,**kwargs) if searchterms else hists
+  histsum   = None
   if matches:
-    if title==None:
-      title   = matches[0].GetTitle() if name==None else name
     if name==None:
-      name    = matches[0].GetName()
-    histsum   = matches[0].Clone(name)
+      name  = matches[0].GetName()
+    if title==None:
+      title = matches[0].GetTitle() if name==None else name
+    histsum = matches[0].Clone(name)
     histsum.SetTitle(title)
     for hist in matches[1:]:
       histsum.Add(hist)
@@ -128,7 +143,7 @@ def grouphists(hists,searchterms,name=None,title=None,**kwargs):
         if close:
           deletehist(hist)
   else:
-    LOG.warning("gethist: Did not find a histogram with searchterms %s..."%(quotestrs(searchterms)))
+    LOG.warning("grouphists: Did not find a histogram with searchterms %s..."%(quotestrs(searchterms)))
   return histsum
   
 
@@ -192,7 +207,7 @@ def seterrorbandstyle(hist,**kwargs):
   hist.SetFillStyle(style)
   
 
-def getbinedges(hist):
+def getbinedges(hist,**kwargs):
   """Get lower and upper edges of bins"""
   verbosity = LOG.getverbosity(kwargs)
   bins      = [ ]
@@ -231,7 +246,7 @@ def havesamebins(hist1,hist2,**kwargs):
       return hist1.GetXaxis().GetXmin()==hist2.GetXaxis().GetXmin() and\
              hist1.GetXaxis().GetXmax()==hist2.GetXaxis().GetXmax() and\
              hist1.GetXaxis().GetNbins()==hist2.GetXaxis().GetNbins()
-  else: # one is TGraph or TGraphAsymmErrors ?
+  else: # one is TGraph ?
     bins1 = getbinedges(hist1)
     bins2 = getbinedges(hist2)
     if bins1!=bins2 and errorX<=0: # only look at bin center
@@ -386,9 +401,9 @@ def geterrorband(*hists,**kwargs):
   TAB.printheader("ibin","xval","xerr","nevts","sqrt(nevts)","statistical unc.","systematical unc.","total unc.")
   ip = 0
   for ibin in range(1,nbins+1):
-    xval        = hist0.GetXaxis().GetBinCenter(ibin)
-    xerr        = 0 if ibin in [0,nbins+1] else hist0.GetXaxis().GetBinWidth(ibin)/2
-    yval        = 0
+    xval = hist0.GetXaxis().GetBinCenter(ibin)
+    xerr = 0 if ibin in [0,nbins+1] else hist0.GetXaxis().GetBinWidth(ibin)/2
+    yval = 0
     statlow2, statupp2 = 0, 0
     syslow2,  sysupp2  = 0, 0
     for hist in hists: # STATISTICS
@@ -401,7 +416,7 @@ def geterrorband(*hists,**kwargs):
     ylow2, yupp2 = statlow2+syslow2, statupp2+sysupp2,
     error.SetPoint(ip,xval,yval)
     error.SetPointError(ip,xerr,xerr,sqrt(ylow2),sqrt(yupp2))
-    TAB.printrow(ibin,xval,xerr,yval,sqrt(yval),sqrt(statupp2),sqrt(statlow2),sqrt(sysupp2),sqrt(syslow2),sqrt(yupp2),sqrt(ylow2))
+    TAB.printrow(ibin,xval,xerr,yval,sqrt(abs(yval)),sqrt(statupp2),sqrt(statlow2),sqrt(sysupp2),sqrt(syslow2),sqrt(yupp2),sqrt(ylow2))
     ip += 1
   seterrorbandstyle(error,color=color)
   #error.SetLineColor(hist0.GetLineColor())
